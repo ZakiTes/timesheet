@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Weekly Timesheet</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 15px;
+      margin: 0;
+      background: #f1f5f9;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      flex: 1;
+      min-width: 120px;
+      padding: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 800px;
+      table-layout: auto;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    th {
+      background: #1e293b;
+      color: white;
+    }
+
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    /* Name column */
+    th:first-child,
+    td:first-child {
+      min-width: 160px;
+      max-width: 220px;
+      text-align: left;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    input {
+      width: 55px;
+      padding: 6px;
+      font-size: 14px;
+      text-align: center;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .worker-name {
+      width: 100%;
+      min-width: 140px;
+      text-align: left;
+      padding-left: 6px;
+    }
+
+    .total-cell {
+      font-weight: bold;
+      background: #e2e8f0;
+    }
+
+    #grandTotal {
+      margin-top: 10px;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    @media (max-width: 600px) {
+      input {
+        width: 50px;
+      }
+
+      th, td {
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Weekly Timesheet</h2>
+
+  <div class="controls">
+    <button onclick="addWorker()">Add Worker</button>
+    <button onclick="removeWorker()">Remove Worker</button>
+    <button onclick="generatePDF()">Generate PDF</button>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Worker</th>
+          <th>Mon</th>
+          <th>Tue</th>
+          <th>Wed</th>
+          <th>Thu</th>
+          <th>Fri</th>
+          <th>Sat</th>
+          <th>Sun</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <div id="grandTotal">Grand Total: 0 hrs</div>
+
+  <script>
+    let workerCount = 0;
+    const maxWorkers = 14;
+
+    function addWorker() {
+      if (workerCount >= maxWorkers) {
+        alert("Maximum 14 workers reached");
+        return;
+      }
+
+      workerCount++;
+
+      const row = document.createElement("tr");
+
+      let html = `<td><input type="text" class="worker-name" placeholder="Name"></td>`;
+
+      for (let i = 0; i < 7; i++) {
+        html += `<td><input type="number" min="0" max="24" step="0.5" oninput="calculateTotals()"></td>`;
+      }
+
+      html += `<td class="total-cell">0</td>`;
+
+      row.innerHTML = html;
+      document.getElementById("table-body").appendChild(row);
+    }
+
+    function removeWorker() {
+      const tbody = document.getElementById("table-body");
+      if (workerCount > 0) {
+        tbody.removeChild(tbody.lastChild);
+        workerCount--;
+        calculateTotals();
+      }
+    }
+
+    function calculateTotals() {
+      const rows = document.querySelectorAll("#table-body tr");
+      let grandTotal = 0;
+
+      rows.forEach(row => {
+        const inputs = row.querySelectorAll("input");
+        let total = 0;
+
+        for (let i = 1; i <= 7; i++) {
+          let val = parseFloat(inputs[i].value) || 0;
+          total += val;
+        }
+
+        row.querySelector(".total-cell").innerText = total.toFixed(1);
+        grandTotal += total;
+      });
+
+      document.getElementById("grandTotal").innerText =
+        "Grand Total: " + grandTotal.toFixed(1) + " hrs";
+    }
+
+    async function generatePDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const rows = document.querySelectorAll("#table-body tr");
+
+      let y = 20;
+
+      doc.setFontSize(16);
+      doc.text("Weekly Timesheet", 14, 15);
+
+      doc.setFontSize(10);
+
+      const headers = ["Name", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total"];
+      const colWidths = [40, 15, 15, 15, 15, 15, 15, 15, 20];
+
+      let x = 14;
+
+      headers.forEach((h, i) => {
+        doc.text(h, x, y);
+        x += colWidths[i];
+      });
+
+      y += 8;
+
+      let grandTotal = 0;
+
+      rows.forEach(row => {
+        const inputs = row.querySelectorAll("input");
+
+        let x = 14;
+        let total = 0;
+
+        let name = inputs[0].value || "-";
+        let splitName = doc.splitTextToSize(name, colWidths[0] - 2);
+
+        doc.text(splitName, x, y);
+        x += colWidths[0];
+
+        for (let i = 1; i <= 7; i++) {
+          let val = parseFloat(inputs[i].value) || 0;
+          total += val;
+
+          doc.text(val.toString(), x, y);
+          x += colWidths[i];
+        }
+
+        doc.text(total.toFixed(1), x, y);
+
+        grandTotal += total;
+
+        y += Math.max(8, splitName.length * 5);
+
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+      });
+
+      y += 5;
+      doc.setFontSize(12);
+      doc.text("Grand Total: " + grandTotal.toFixed(1) + " hrs", 14, y);
+
+      doc.save("timesheet.pdf");
+    }
+
+    // Default rows
+    for (let i = 0; i < 3; i++) addWorker();
+  </script>
+
+</body>
+</html>
